@@ -18,42 +18,51 @@ def get_green_channel(image):
     return 255 - ((G * 255) / (R + G + B))
 
 
+# Otsuovou metoda
 def threshold_image(image):
     _, binary_image = cv2.threshold(image.astype(np.uint8), 0, 255, cv2.THRESH_BINARY + cv2.THRESH_OTSU)
     return binary_image
-
 
 def custom_connected_components(binary_image):
     h, w = binary_image.shape
     labels = np.zeros((h, w), dtype=np.int32)
     current_label = 1
     coins = []
-    
+
+    def dfs(i, j):
+        stack = [(i, j)]
+        pixels = []
+        while stack:
+            ci, cj = stack.pop()
+            if labels[ci, cj] != 0:
+                continue
+            labels[ci, cj] = current_label
+            pixels.append((ci, cj))
+
+            for di, dj in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
+                ni, nj = ci + di, cj + dj
+                if 0 <= ni < h and 0 <= nj < w:
+                    if binary_image[ni, nj] == 255 and labels[ni, nj] == 0:
+                        stack.append((ni, nj))
+        return pixels
+
     for i in range(h):
         for j in range(w):
             if binary_image[i, j] == 255 and labels[i, j] == 0:
-                stack = [(i, j)]
-                labels[i, j] = current_label
-                pixels = []
-                while stack:
-                    ci, cj = stack.pop()
-                    pixels.append((ci, cj))
-                    for di, dj in [(-1, 0), (1, 0), (0, -1), (0, 1)]:
-                        ni, nj = ci + di, cj + dj
-                        if 0 <= ni < h and 0 <= nj < w:
-                            if binary_image[ni, nj] == 255 and labels[ni, nj] == 0:
-                                labels[ni, nj] = current_label
-                                stack.append((ni, nj))
-                area = len(pixels)
-                centroid = (sum(j for i, j in pixels) / area,
-                            sum(i for i, j in pixels) / area)
+                pixels = dfs(i, j)
+                pixels_count = len(pixels)
+
+                centroid = (sum(j for i, j in pixels) / pixels_count,
+                            sum(i for i, j in pixels) / pixels_count)
+
+                coin_value = "5" if pixels_count > 4000 else "1"
+
                 coins.append({
-                    'label': current_label,
-                    'area': area,
                     'centroid': centroid,
-                    'type': "5" if area > 4000 else "1"
+                    'type': coin_value
                 })
                 current_label += 1
+
     return labels, coins
 
 
@@ -64,7 +73,10 @@ def draw_centroids(image, coins):
         x, y = map(int, coin['centroid'])
         cv2.circle(centroids, (x, y), 5, (0, 0, 255), -1)
         cv2.putText(centroids, f"{coin['type']}", (x+10, y+10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 2)
+
         total_value += int(coin['type'])
+        print(f"Na souřadnici těžiště ({x}, {y}) je mince s hodnotou {coin['type']} CZK")
+
     return centroids, total_value
 
 
