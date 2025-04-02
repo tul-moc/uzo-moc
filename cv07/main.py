@@ -77,7 +77,8 @@ def draw_centroids(image, coins):
         total_value += int(coin['type'])
         print(f"Na souřadnici těžiště ({x}, {y}) je mince s hodnotou {coin['type']} CZK")
 
-    return centroids, total_value
+    print(f"Hodnota mincí: {total_value} CZK")
+    return centroids
 
 
 def main():
@@ -86,7 +87,7 @@ def main():
     green_channel = get_green_channel(segmentation_image)
     binary_image = threshold_image(green_channel)
     labels, coins = custom_connected_components(binary_image)
-    centroids, coins_value = draw_centroids(segmentation_image, coins)
+    centroids = draw_centroids(segmentation_image, coins)
 
     segmentation_rgb = cv2.cvtColor(segmentation_image, cv2.COLOR_BGR2RGB)
     centroids_rgb = cv2.cvtColor(centroids, cv2.COLOR_BGR2RGB)
@@ -96,8 +97,6 @@ def main():
     plot(binary_image, 'gray', 'Binární obraz')
     plot(labels, 'nipy_spectral', 'Označené oblasti')
     plot(centroids_rgb, None, 'Detekované mince')
-
-    print(f"Hodnota mincí: {coins_value} CZK")
 
 
 if __name__ == "__main__":
