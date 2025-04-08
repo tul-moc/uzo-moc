@@ -2,7 +2,7 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 
-def plot(original, segmentation, filtered, result, segmentation_cmap="gray", filtered_cmap="gray"):
+def plot(original, segmentation, filtered, centroids, segmentation_cmap="gray", filtered_cmap="gray"):
     plt.figure(figsize=(12, 8))
     
     plt.subplot(2, 2, 1)
@@ -13,12 +13,14 @@ def plot(original, segmentation, filtered, result, segmentation_cmap="gray", fil
     plt.imshow(segmentation, cmap=segmentation_cmap)
     plt.axis('off')
 
-    plt.subplot(2, 2, 3)
+    ax3 = plt.subplot(2, 2, 3)
+    filtered_im = ax3.imshow(filtered, cmap=filtered_cmap)
     plt.imshow(filtered, cmap=filtered_cmap)
     plt.axis('off')
+    plt.colorbar(filtered_im, ax=ax3, fraction=0.046, pad=0.04)
 
     plt.subplot(2, 2, 4)
-    plt.imshow(result)
+    plt.imshow(cv2.cvtColor(centroids, cv2.COLOR_BGR2RGB))
     plt.axis('off')
     
     plt.tight_layout()
@@ -31,17 +33,8 @@ def image_threshold(image):
 
 
 def open_method(image):
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8, 8))
-    filtered = cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
-    filtered = (filtered > 0).astype(np.uint8)
-    return filtered
-
-
-def close_method(image):
-    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (8, 8))
-    filtered = cv2.morphologyEx(image, cv2.MORPH_CLOSE, kernel)
-    filtered = (filtered > 0).astype(np.uint8)
-    return filtered
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (10, 10))
+    return cv2.morphologyEx(image, cv2.MORPH_OPEN, kernel)
 
 
 def calculate_red_channel(image):
@@ -49,26 +42,22 @@ def calculate_red_channel(image):
     R = np.float32(img_rgb[:, :, 0])
     G = np.float32(img_rgb[:, :, 1])
     B = np.float32(img_rgb[:, :, 2])
-    denom = (R + G + B) + 1e-6
-    red_channel = 255 - ((R * 255) / denom)
+    red_channel = 255 - ((R * 255) / (R + G + B))
     inverted_red_channel = cv2.bitwise_not(red_channel.astype(np.uint8))
     return inverted_red_channel
 
 
-def color_regions(binary):
+def draw_centroids(binary, original_image):
     num_labels, _, _, centroids = cv2.connectedComponentsWithStats(binary, connectivity=4)
     infos = []
     for i in range(1, num_labels):
         infos.append(centroids[i])
-    return infos
-
-
-def draw_centroids(image, infos):
-    centroids = image.copy()
+    
+    image = original_image.copy()
     for info in infos:
         x, y = map(int, info)
-        cv2.drawMarker(centroids, (x, y), (0, 255, 0), markerType=cv2.MARKER_CROSS, markerSize=8, thickness=1, line_type=cv2.LINE_AA)
-    return centroids
+        cv2.drawMarker(image, (x, y), (0, 255, 0), markerType=cv2.MARKER_CROSS, markerSize=8, thickness=1, line_type=cv2.LINE_AA)
+    return image
 
 
 def process_first_image(image_path):
@@ -78,24 +67,19 @@ def process_first_image(image_path):
 
     binary = image_threshold(inverted)
     binary_filtered = open_method(binary)
-    infos = color_regions(binary_filtered)
-    centroids = draw_centroids(segmentation, infos)
-    centroids_rgb = cv2.cvtColor(centroids, cv2.COLOR_BGR2RGB)
+    centroids = draw_centroids(binary_filtered, segmentation)
 
-    plot(segmentation, binary, binary_filtered, centroids_rgb, segmentation_cmap="gray")
+    plot(segmentation, binary, binary_filtered, centroids, segmentation_cmap="gray")
 
 def process_second_image(image_path):
     segmentation = cv2.imread(image_path)
 
     channel = calculate_red_channel(segmentation)
     binary = image_threshold(channel)
-    binary_filtered = close_method(binary)
-    infos = color_regions(binary_filtered)
-    centroids = draw_centroids(segmentation, infos)
+    binary_filtered = open_method(binary)
+    centroids = draw_centroids(binary_filtered, segmentation)
 
-    rgb_centroids = cv2.cvtColor(centroids, cv2.COLOR_BGR2RGB)
-
-    plot(segmentation, binary_filtered, channel, rgb_centroids, segmentation_cmap="gray", filtered_cmap="jet")
+    plot(segmentation, binary_filtered, channel, centroids, segmentation_cmap="gray", filtered_cmap="jet")
 
 if __name__ == "__main__":
     plt.close("all")
